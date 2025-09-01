@@ -1,9 +1,4 @@
-"""
-ImageView.py
-Created November 1, 2020
-
-...
-"""
+"""Widget de visualização da imagem do ECG com suporte a zoom e rotação."""
 import sys
 from typing import Any
 
@@ -14,18 +9,19 @@ from views.ROIView import ROI_ITEM_TYPE
 from model.Lead import Lead, LeadId
 
 
-MACOS_SCROLL_KEYS = {QtCore.Qt.Key_Meta}  # Option key
-# TODO: Try to find a way for the command key to work? A keydownEvent is registered for CMD+O, but
-# no keyupEvent fires because the file selector window steals focus without the main window noticing that it
-# lost focus. (ARGH!!!)
-SCROLL_STEP_FACTOR= 1.5
+MACOS_SCROLL_KEYS = {QtCore.Qt.Key_Meta}  # Tecla Option
+# TODO: encontrar forma de capturar a tecla Command; a janela de seleção de arquivos
+# rouba o foco e impede o recebimento do evento de soltar a tecla.
+SCROLL_STEP_FACTOR = 1.5
 
 
 onMacOS = sys.platform == "darwin"
 
 
-# From: https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsview
+# Adaptado de: https://stackoverflow.com/questions/35508711/how-to-enable-pan-and-zoom-in-a-qgraphicsview
 class ImageView(QtWidgets.QGraphicsView):
+    """`QGraphicsView` especializado para exibir e manipular a imagem do ECG."""
+
     roiItemSelected = QtCore.pyqtSignal(str, bool)
     updateRoiItem = QtCore.pyqtSignal(object)
     updateScale = QtCore.pyqtSignal(float)
@@ -40,11 +36,11 @@ class ImageView(QtWidgets.QGraphicsView):
         self._macosScrollKey = False
 
         self._scene = QtWidgets.QGraphicsScene(self)
-        self._container = ImageView.createContainer()  # Permits rotation mechanics
-        self._pixmapItem = QtWidgets.QGraphicsPixmapItem(parent=self._container)  # The pixmap form of the image data
+        self._container = ImageView.createContainer()  # Permite mecânica de rotação
+        self._pixmapItem = QtWidgets.QGraphicsPixmapItem(parent=self._container)  # Pixmap com a imagem do ECG
         self._scene.addItem(self._container)
 
-        self.setMinimumSize(600, 400) # What does this do?
+        self.setMinimumSize(600, 400)  # Tamanho mínimo da área de visualização
         self.setScene(self._scene)
         self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
         self.setResizeAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
@@ -54,7 +50,7 @@ class ImageView(QtWidgets.QGraphicsView):
 
 
     def addShortcuts(self):
-        """ Enable ctrl+ and ctrl- shortcuts for zoom in/out """
+        """Habilita atalhos de teclado para ampliar ou reduzir a imagem."""
         QtWidgets.QShortcut(
             QtGui.QKeySequence(QtGui.QKeySequence.ZoomIn),
             self,
@@ -71,110 +67,124 @@ class ImageView(QtWidgets.QGraphicsView):
 
     @staticmethod
     def createContainer():
+        """Cria retângulo base onde o `QPixmap` será inserido."""
         container = QtWidgets.QGraphicsRectItem()
-        container.setPen(QtGui.QPen(QtCore.Qt.NoPen))  # Hide the border
-        container.setFlag(container.ItemClipsChildrenToShape)  # Clip the rotated corners
-        container.setBrush(QtCore.Qt.white)  # default
+        container.setPen(QtGui.QPen(QtCore.Qt.NoPen))  # Oculta a borda
+        container.setFlag(container.ItemClipsChildrenToShape)  # Recorta cantos ao rotacionar
+        container.setBrush(QtCore.Qt.white)  # Cor de fundo padrão
         return container
 
     def setContainerBackground(self, color: Any):
-        # TODO Figure out how to set the color correctly
+        """Altera a cor de fundo do contêiner de imagem."""
+        # TODO: Ajustar para respeitar o parâmetro `color`
         self._container.setBrush(QtCore.Qt.white)
 
     @property
     def imageRect(self):
+        """Retângulo atual ocupado pela imagem."""
         return QtCore.QRectF(self._pixmapItem.pixmap().rect())
 
     def imageChanged(self):
+        """Atualiza dimensões da cena após modificar o `QPixmap`."""
         print("Image changed")
         newRect = self.imageRect
         self._scene.setSceneRect(newRect)
         self._container.setRect(newRect)
 
     def resizeEvent(self, event):
+        """Garante que a imagem se ajuste ao redimensionar a janela."""
         if self.hasImage() and not self.verticalScrollBar().isVisible() and not self.horizontalScrollBar().isVisible():
            self.fitInView(self.imageRect, QtCore.Qt.KeepAspectRatio)
 
         super().resizeEvent(event)
 
     def hasImage(self):
+        """Indica se há uma imagem carregada."""
         return not self._empty
 
     def setImage(self, image=None):
+        """Recebe uma imagem OpenCV e a exibe no `QGraphicsView`."""
         print("Image set")
         self._pixmapItem.setPixmap(ImageUtilities.opencvImageToPixmap(image))
         self._empty = False
         self.setDragMode(QtWidgets.QGraphicsView.NoDrag)
 
-        # Show the image background container
+        # Mostra o contêiner de fundo da imagem
         self._container.setVisible(True)
 
         self.rotateImage(0)
 
-        # Set rotation origin in the center of the image
+        # Define a origem de rotação no centro do pixmap
         pixmapSize = self._pixmapItem.pixmap().size()
         self._pixmapItem.setTransformOriginPoint(pixmapSize.width() // 2, pixmapSize.height() // 2)
 
         self.imageChanged()
 
     def fitImageInView(self):
+        """Ajusta o *zoom* para enquadrar toda a imagem."""
         self.fitInView(self.imageRect, QtCore.Qt.KeepAspectRatio)
 
     def removeImage(self):
+        """Remove o `QPixmap` e oculta o contêiner da imagem."""
         self._image = None
         self._pixmapItem.setPixmap(QtGui.QPixmap())
         self._empty = True
 
-        # Hide the image background container
+        # Esconde o contêiner de fundo da imagem
         self._container.setVisible(False)
 
         self.rotateImage(0)
 
     def removeAllRoiBoxes(self):
-        # remove roi boxes from scene
+        """Remove todas as caixas de ROI da cena."""
         for item in self._scene.items():
             if item.type == ROI_ITEM_TYPE:
                 self._scene.removeItem(item)
 
     def removeRoiBox(self, leadId):
-        # remove indiviudual roi from scene
+        """Remove uma ROI específica identificada pelo `leadId`."""
         for item in self._scene.items():
             if item.type == ROI_ITEM_TYPE and item.leadId == leadId:
                 self._scene.removeItem(item)
 
     def getAllLeadRoisAsDict(self):
-        # return all lead ROIs present in the scene as a dictionary with LeadId:Lead pairs
+        """Retorna todas as ROIs como dicionário `LeadId` -> `Lead`."""
         leads = {}
         for item in self._scene.items():
             if item.type == ROI_ITEM_TYPE:
-                leads[LeadId[item.leadId]] = Lead(x=item.x, y=item.y, width=item.width, height=item.height, startTime=item.startTime)
+                leads[LeadId[item.leadId]] = Lead(
+                    x=item.x, y=item.y, width=item.width, height=item.height, startTime=item.startTime
+                )
         return leads
 
     def getLeadRoiStartTime(self, leadId):
-        # get start time for specific lead (looking into a way to do this without looping through all items in scene)
+        """Obtém o tempo inicial associado a uma ROI."""
         for item in self._scene.items():
             if item.type == ROI_ITEM_TYPE and item.leadId == leadId:
                 return item.startTime
 
     def setLeadRoiStartTime(self, leadId, startTime):
-        # set start time for specific lead (looking into a way to do this without looping through all items in scene)
+        """Define o tempo inicial para uma ROI específica."""
         for item in self._scene.items():
             if item.type == ROI_ITEM_TYPE and item.leadId == leadId:
                 item.startTime = startTime
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        """Detecta teclas especiais para zoom no macOS."""
         if onMacOS and event.key() in MACOS_SCROLL_KEYS:
             self._macosScrollKey = True
         return super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event: QtGui.QKeyEvent) -> None:
+        """Atualiza estado quando teclas especiais são liberadas."""
         if onMacOS and event.key() in MACOS_SCROLL_KEYS:
             self._macosScrollKey = False
         return super().keyPressEvent(event)
 
     def event(self, event):
-        # Detects pinching gesture on macOS
-        # Examples: https://doc.qt.io/qt-5/qtwidgets-gestures-imagegestures-example.html
+        """Trata gestos e perda de foco para suporte a *trackpads* no macOS."""
+        # Detecta gesto de pinça no macOS
+        # Exemplo: https://doc.qt.io/qt-5/qtwidgets-gestures-imagegestures-example.html
         if isinstance(event, QtGui.QFocusEvent):
             if event.lostFocus():
                 self._macosScrollKey = False
@@ -186,12 +196,13 @@ class ImageView(QtWidgets.QGraphicsView):
         return super().event(event)
 
     def wheelEvent(self, event):
+        """Implementa zoom com scroll do mouse ou *trackpad*."""
         if onMacOS:
             if self._macosScrollKey:
                 self.smoothZoom(event.angleDelta().y() / 750)
             else:
                 super().wheelEvent(event)
-        else: # Zoom in and out using mouse wheel
+        else:  # Zoom in and out using mouse wheel
             if event.angleDelta().y() > 0:
                 self.zoomIn()
             else:
@@ -205,7 +216,7 @@ class ImageView(QtWidgets.QGraphicsView):
     #     print(viewWidth, viewHeight, imageWidth, imageHeight)
 
     def smoothZoom(self, amount: float):
-        """ Zooming in and out on macOS needs to be proportion to the strength of the user interaction """
+        """Realiza zoom suave proporcional ao gesto no macOS."""
         scaleChange = (1 + amount)
         new_scale = self._scale * scaleChange
         if (self._scale > 1 or amount > 0) and new_scale >= 1:
@@ -217,6 +228,7 @@ class ImageView(QtWidgets.QGraphicsView):
 
     #zoomIn and zoomOut based on: https://stackoverflow.com/questions/57713795/zoom-in-and-out-in-widget
     def zoomIn(self):
+        """Amplia a imagem em um passo fixo."""
         if self.hasImage():
             transformScale = QtGui.QTransform()
             transformScale.scale(SCROLL_STEP_FACTOR, SCROLL_STEP_FACTOR)
@@ -228,6 +240,7 @@ class ImageView(QtWidgets.QGraphicsView):
             self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
 
     def zoomOut(self):
+        """Reduz a imagem ou reajusta para caber na janela."""
         if self.hasImage():
             transformScale = QtGui.QTransform()
             transformScale.scale(SCROLL_STEP_FACTOR, SCROLL_STEP_FACTOR)
@@ -246,5 +259,6 @@ class ImageView(QtWidgets.QGraphicsView):
                 print("scale not invertible")
 
     def rotateImage(self, rotation: float):
-        # The QGraphics notion of rotation is opposite standard angle meaning
+        """Aplica rotação à imagem em torno do seu centro."""
+        # No QGraphics a rotação tem sinal invertido em relação ao convencional
         self._pixmapItem.setRotation(rotation * -1)
