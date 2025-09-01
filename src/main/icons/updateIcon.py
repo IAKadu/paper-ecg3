@@ -1,56 +1,63 @@
-"""
-updateIcon.py
-Created November 13, 2020
+"""Gera ícones em diversos tamanhos a partir de ``icon.png``.
 
-Refreshes icons/ based on icons/icon.png
-Source: https://github.com/mherrmann/fbs/issues/199
+Utilizado para atualizar o diretório ``icons/`` com versões do ícone
+compatíveis com diferentes sistemas operacionais.
 """
 
-import os, sys
+import os
+import sys
 from PIL import Image, ImageOps
 
 
+# Caminho absoluto do diretório onde este script está localizado.
 iconDirectory = os.path.abspath(os.path.dirname(sys.argv[0]))
 
-# icon filename to use
+# Carrega a imagem base que será redimensionada.
 image = Image.open(os.path.join(iconDirectory, "icon.png"))
 
+# Conjuntos de tamanhos exigidos pelo aplicativo, Linux e macOS.
 base = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64)]
 linux = [(128, 128), (256, 256), (512, 512), (1024, 1024)]
 mac = [(128, 128), (256, 256), (512, 512), (1024, 1024)]
 
-# Create base icon sizes in src/main/icons/base
+# Cria as imagens base.
 for size in base:
-    outPath = os.path.join(iconDirectory, "base", str(size[0]) + ".png")
+    outPath = os.path.join(iconDirectory, "base", f"{size[0]}.png")
     scaledImage = image.resize(size)
     scaledImage.save(outPath)
-    print('Icon created: ' + outPath)
+    print("Ícone criado: " + outPath)
 
-# Create linux icon sizes in src/main/icons/linux
+# Cria as imagens para Linux.
 for size in linux:
-    outPath = os.path.join(iconDirectory, "linux", str(size[0]) + ".png")
+    outPath = os.path.join(iconDirectory, "linux", f"{size[0]}.png")
     scaledImage = image.resize(size)
     scaledImage.save(outPath)
-    print('Icon created: ' + outPath)
+    print("Ícone criado: " + outPath)
 
-# Create mac icon sizes in src/main/icons/mac
+# Cria as imagens para macOS, adicionando padding extra.
 for size in mac:
-    outPath = os.path.join(iconDirectory, "mac", str(size[0]) + ".png")
+    outPath = os.path.join(iconDirectory, "mac", f"{size[0]}.png")
 
     padFactor = 0.2
-    # Reduce image size (and fit padding)
-    scale = (int(size[0] * (1-padFactor)), int(size[1] * (1-padFactor)))
+    # Reduz a imagem e adiciona bordas para que fique centralizada.
+    scale = (int(size[0] * (1 - padFactor)), int(size[1] * (1 - padFactor)))
     scaledImage = image.resize(scale)
 
-    # Add padding
+    # Calcula o padding necessário em cada direção.
     padAmount = size[0] - scale[0]
-    padding = (padAmount//2, padAmount//2, padAmount-(padAmount//2), padAmount-(padAmount//2))
+    padding = (
+        padAmount // 2,
+        padAmount // 2,
+        padAmount - (padAmount // 2),
+        padAmount - (padAmount // 2),
+    )
     finalImage = ImageOps.expand(scaledImage, padding)
     finalImage.save(outPath)
-    print('Icon created: ' + outPath)
+    print("Ícone criado: " + outPath)
 
-# Create Icon.ico in src/main/icons/Icon.ico
+# Gera o arquivo .ico final com múltiplas resoluções.
 new_logo_ico_filename = os.path.join(iconDirectory, "Icon.ico")
 new_logo_ico = image.resize((128, 128))
 new_logo_ico.save(new_logo_ico_filename, format="ICO", quality=90)
-print('Icon created: ' + new_logo_ico_filename)
+print("Ícone criado: " + new_logo_ico_filename)
+

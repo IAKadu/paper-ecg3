@@ -1,9 +1,4 @@
-"""
-ImageUtilities.py
-Created November 9, 2020
-
--
-"""
+"""Funções auxiliares para manipulação de imagens com OpenCV e Qt."""
 from pathlib import Path
 from typing import Tuple
 
@@ -14,11 +9,19 @@ import scipy.stats as stats
 
 
 def readImage(path: Path) -> np.ndarray:
+    """Lê uma imagem do disco utilizando OpenCV."""
+
     return cv2.imread(str(path.absolute()))
 
 
-def opencvImageToPixmap(image):
-    # SOURCE: https://stackoverflow.com/a/50800745/7737644 (Creative Commons - Credit, share-alike)
+def opencvImageToPixmap(image: np.ndarray) -> QtGui.QPixmap:
+    """Converte uma matriz do OpenCV para ``QPixmap``.
+
+    A rotina foi adaptada de um exemplo disponível na internet (ver link
+    abaixo) e é útil para exibir imagens carregadas pelo OpenCV em widgets do
+    Qt.
+    """
+    # Fonte: https://stackoverflow.com/a/50800745/7737644 (Creative Commons)
 
     height, width, channel = image.shape
     bytesPerLine = 3 * width
@@ -34,3 +37,4 @@ def opencvImageToPixmap(image):
     )
 
     return pixmap
+

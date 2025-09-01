@@ -1,8 +1,8 @@
 """
 Main.py
-Created November 1, 2020
+Criado em 1 de novembro de 2020
 
-Entry point for the application
+Ponto de entrada da aplicação.
 """
 
 import sys
@@ -15,15 +15,17 @@ from controllers.MainController import MainController
 if __name__ == '__main__':
     context = ApplicationContext()
 
-    # Translate asset paths to useable format for PyInstaller
+    # Converte os caminhos de recursos para um formato utilizável pelo PyInstaller
     def resource(relativePath):
         return context.get_resource(relativePath)
 
-    # Launch the main controller and window
+    # Inicializa o controlador principal e a janela associada
     controller = MainController()
 
-    # Hang
+    # Inicia o loop de eventos do Qt e mantém a aplicação em execução
     exit_code = context.app.exec_()
 
+    # Mostra o código de saída e encerra o programa
     print(f"Exiting with status {exit_code}")
     sys.exit(exit_code)
+

@@ -1,3 +1,10 @@
+"""Estruturas leves para representar imagens e operações auxiliares.
+
+Reúne classes simples baseadas em ``dataclasses`` que encapsulam dados de
+imagens em cores, tons de cinza ou binárias, além de funções de E/S e
+transformações comuns como recorte e rotação.
+"""
+
 from pathlib import Path
 from typing import Optional, Tuple, Union
 import dataclasses
@@ -10,50 +17,57 @@ import scipy.stats as stats
 
 @dataclasses.dataclass(frozen=True)
 class Image:
+    """Classe base contendo apenas a matriz de pixels."""
+
     data: np.ndarray
 
     @property
     def height(self):
+        """Altura da imagem em pixels."""
+
         return self.data.shape[0]
 
     @property
     def width(self):
+        """Largura da imagem em pixels."""
+
         return self.data.shape[1]
 
 
 class ColorImage(Image):
+    """Representa uma imagem em cores no espaço BGR do OpenCV."""
 
     def __post_init__(self) -> None:
         assert isinstance(self.data, np.ndarray)
         assert len(self.data.shape) == 3 and self.data.shape[2] == 3
 
     def toGrayscale(self):  # -> GrayscaleImage
-        """Uses:
-            `grey = 0.299 * red + 0.587 * green, 0.114 * blue`
+        """Converte para escala de cinza usando a combinação ponderada padrão."""
 
-        The "standard method" given in equation (2) by Mallawaarachchi.
-        """
-        return GrayscaleImage(
-            cv2.cvtColor(self.data, cv2.COLOR_BGR2GRAY)
-        )
+        return GrayscaleImage(cv2.cvtColor(self.data, cv2.COLOR_BGR2GRAY))
 
 
 class GrayscaleImage(Image):
+    """Armazena imagem com um único canal de intensidade."""
 
     def __post_init__(self) -> None:
         assert isinstance(self.data, np.ndarray)
         assert len(self.data.shape) == 2
 
     def toColor(self) -> ColorImage:
+        """Expande o canal único para BGR, útil para visualização."""
+
         return ColorImage(cv2.cvtColor(self.data, cv2.COLOR_GRAY2BGR))
 
-    def toBinary(self, threshold: Optional[int] = None, inverse: bool =True):  # -> BinaryImage
+    def toBinary(self, threshold: Optional[int] = None, inverse: bool = True):  # -> BinaryImage
+        """Gera imagem binária a partir de um limiar automático ou definido."""
+
         if threshold is None:
             if inverse:
                 binaryData: np.ndarray
                 _, binaryData = cv2.threshold(self.data, 0, 1, cv2.THRESH_OTSU)
-                # Convert from uint8 -> bool, invert truth values, then convert bool -> uint8
-                binaryData = np.invert(binaryData.astype('bool')).astype('uint8')
+                # Converte de uint8 -> bool, inverte valores e retorna a uint8
+                binaryData = np.invert(binaryData.astype("bool")).astype("uint8")
             else:
                 _, binaryData = cv2.threshold(self.data, 0, 1, cv2.THRESH_OTSU)
         else:
@@ -65,31 +79,41 @@ class GrayscaleImage(Image):
         return BinaryImage(binaryData)
 
     def normalized(self):  # -> GrayscaleImage:
-        # Maps the image to the range [0,1]
-        assert self.data.dtype is np.dtype('uint8')
+        """Normaliza os valores para o intervalo ``[0, 1]``."""
+
+        assert self.data.dtype is np.dtype("uint8")
         return GrayscaleImage(self.data / 255)
 
     def whitePointAdjusted(self, strength: float = 1.0):  # -> GrayscaleImage:
+        """Ajusta o ponto branco para aumentar contraste."""
+
         hist = self.histogram()
         whitePoint = np.argmax(hist)
         whiteScaleFactor = 255 / whitePoint * strength
         return GrayscaleImage(cv2.addWeighted(self.data, whiteScaleFactor, self.data, 0, 0))
 
     def histogram(self) -> np.ndarray:
-        counts, _ = np.histogram(self.data, 255, range=(0,255))
+        """Retorna o histograma de intensidades da imagem."""
+
+        counts, _ = np.histogram(self.data, 255, range=(0, 255))
         return counts
 
 
 class BinaryImage(Image):
+    """Imagem contendo apenas valores 0 ou 1 por pixel."""
 
     def __post_init__(self) -> None:
         assert isinstance(self.data, np.ndarray)
         assert len(self.data.shape) == 2
 
     def toColor(self) -> ColorImage:
+        """Expande a imagem binária para BGR (0 ou 255)."""
+
         return ColorImage(cv2.cvtColor(self.data * 255, cv2.COLOR_GRAY2BGR))
 
     def toGrayscale(self) -> GrayscaleImage:
+        """Converte para tons de cinza (0 ou 255)."""
+
         return GrayscaleImage(self.data * 255)
 
 
@@ -99,6 +123,8 @@ class BinaryImage(Image):
 
 
 def openImage(path: Path) -> ColorImage:
+    """Abre uma imagem do disco retornando um ``ColorImage``."""
+
     assert isinstance(path, Path)
     assert path.exists()
 
@@ -109,6 +135,8 @@ def openImage(path: Path) -> ColorImage:
 
 
 def saveImage(image: Image, path: Path) -> None:
+    """Salva ``image`` no caminho indicado convertendo para BGR se necessário."""
+
     assert isinstance(image, (ColorImage, GrayscaleImage, BinaryImage))
 
     if isinstance(image, ColorImage):
@@ -125,7 +153,8 @@ def saveImage(image: Image, path: Path) -> None:
 
 # TODO: This takes waaayyy to long for practical use
 def getMode(inputImage: np.ndarray) -> Tuple[int, int, int]:
-    """Gets the mode (most common) pixel color value in the image. Used to fill borders when rotating."""
+    """Obtém a cor mais frequente, útil para preencher bordas em rotações."""
+
     firstModes = stats.mode(inputImage, axis=0)
     modeResults = stats.mode(firstModes.mode, axis=1).mode[0][0]
     modeValues = tuple(map(int, modeResults))
@@ -135,6 +164,8 @@ def getMode(inputImage: np.ndarray) -> Tuple[int, int, int]:
 
 @dataclasses.dataclass(frozen=True)
 class Rectangle:
+    """Define um retângulo pela posição ``(x, y)`` e dimensões."""
+
     x: int
     y: int
     width: int
@@ -143,6 +174,8 @@ class Rectangle:
 
 @dataclasses.dataclass(frozen=True)
 class Boundaries:
+    """Delimita uma área com limites inicial/final em X e Y."""
+
     fromX: int
     toX: int
     fromY: int
@@ -150,9 +183,11 @@ class Boundaries:
 
 
 def cropped(inputImage: Image, crop: Union[Rectangle, Boundaries]) -> Image:
+    """Recorta uma subárea da imagem original."""
+
     if isinstance(crop, Rectangle):
         x, y, w, h = crop.x, crop.y, crop.width, crop.height
-        crop = Boundaries(x, x+w, y, y+h)
+        crop = Boundaries(x, x + w, y, y + h)
 
     outputData = inputImage.data.copy()
     croppedData = outputData[crop.fromY:crop.toY, crop.fromX:crop.toX]
@@ -167,7 +202,9 @@ def cropped(inputImage: Image, crop: Union[Rectangle, Boundaries]) -> Image:
         raise ValueError
 
 
-def rotated(inputImage: Image, angle: float, border: Tuple[int, int, int] = (255,255,255)) -> Image:
+def rotated(inputImage: Image, angle: float, border: Tuple[int, int, int] = (255, 255, 255)) -> Image:
+    """Gira a imagem em ``angle`` graus preenchendo bordas com ``border``."""
+
     center = (inputImage.width // 2, inputImage.height // 2)
     rotationMatrix = cv2.getRotationMatrix2D(center, angle, 1.0)
     rotatedData = cv2.warpAffine(

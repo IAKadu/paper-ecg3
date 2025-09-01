@@ -1,35 +1,45 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import glob
+"""Exibe graficamente todos os leads de um arquivo de ECG.
+
+O script lê um arquivo contendo sinais de ECG e cria um gráfico separado
+para cada lead disponível no registro.
+"""
+
 import os
 import sys
+import matplotlib.pyplot as plt
 
 import signal_loader
 
-if os.name != 'posix':
-    print("Julian doesn't understand Windows :( sorry")
 
+# Verificação de sistema para evitar problemas em plataformas não POSIX.
+if os.name != "posix":
+    print("Julian não entende Windows :( desculpe")
+
+# É necessário pelo menos um argumento: o caminho do arquivo de ECG.
 if len(sys.argv) < 2:
-    print("Error!")
-    print(f"Usage: python {sys.argv[0]} PATIENT_ID")
+    print("Erro!")
+    print(f"Uso: python {sys.argv[0]} ARQUIVO_ECG")
     exit(1)
 
 file = sys.argv[1]
 
-# duration = 0
-# lead2Values = [] # Grab all the II leads
-
+# Carrega a matriz de leads; cada linha corresponde a um canal do ECG.
 leads = signal_loader.load(file)
 
+# `leads` possui formato (n_leads, duração). Extraímos a quantidade de leads
+# e o número de amostras para compor o eixo do tempo.
 leadCount, duration = leads.shape
 times = list(range(duration))
 
 plotNumber = 0
 
+# Cria um gráfico para cada lead do ECG.
 fig, ax = plt.subplots(nrows=leadCount, ncols=1)
 for row in ax:
-    # row.title.set_text(name)
+    # Plota o lead correspondente ao gráfico atual.
     row.plot(times, leads[plotNumber])
     plotNumber += 1
 
+# Exibe os gráficos.
 plt.show()
+

@@ -1,8 +1,10 @@
-"""
-QtWrapper.py
-Created November 7, 2020
+"""Coleção de utilitários para facilitar o uso do Qt.
 
-Wrapper to simplify interacting with Qt
+O módulo concentra funções geradoras de widgets e *layouts* padrão,
+abstraindo a criação repetitiva de componentes da interface gráfica.
+Essas funções são frequentemente decoradas por :func:`bindsToClass`,
+permitindo que o widget criado seja anexado automaticamente ao objeto
+"dono".
 """
 from typing import cast, List, Optional, Tuple, Union
 
@@ -11,40 +13,48 @@ from PyQt5.QtWidgets import QAction, QComboBox, QGroupBox, QHBoxLayout, QLabel, 
 
 
 class SplitterOrientation:
+    """Enumeração simples para orientar ``QSplitter``."""
+
     Horizontal = QtCore.Qt.Horizontal
     Vertical = QtCore.Qt.Vertical
 
 
 class Separator():
-    """A dummy type to represent a menu separator"""
+    """Tipo fictício usado para representar um separador de menu."""
+
     pass
 
 
 class Tab:
+    """Estrutura auxiliar para criação de abas em ``QTabWidget``."""
+
     def __init__(self, label: str, widget: QWidget):
         self.label = label
         self.widget = widget
 
 
 def bindsToClass(createWidgetFunction):
-    """
-    Decorator for binding a created widget to the owner using the given name.
-    Decorated functions must have the first 2 parameters: (owner, name, ...).
+    """Decorator que vincula o widget criado a um atributo do objeto.
 
-    Example:
+    As funções decoradas devem receber como primeiros argumentos o
+    ``owner`` (objeto que receberá o widget) e ``name`` (nome do atributo).
+
+    Exemplo::
+
         @bindsToClass
-        def createWidget(owner, name, other, parameters)
-            pass
+        def createWidget(owner, name, other, parameters):
+            ...
 
-        class Window():
+        class Window:
             def __init__(self):
                 createWidget(self, "example", foo, bar)
-                print(self.example)
+                print(self.example)  # -> widget criado
     """
+
     def createAndBind(*args, **kwargs):
         owner, name = None, None
 
-        # Try to extract the `owner` and `name` parameters
+        # Extrai ``owner`` e ``name`` dos argumentos posicionais ou nomeados
         if "owner" in kwargs and "name" in kwargs:
             owner, name = kwargs["owner"], kwargs["name"]
         elif len(args) == 1 and "name" in kwargs:
@@ -52,14 +62,16 @@ def bindsToClass(createWidgetFunction):
         elif len(args) >= 2:
             owner, name = args[:2]
 
-        # Create the widget by calling the decorated function
+        # Cria o widget chamando a função original
         widget = createWidgetFunction(*args, **kwargs)
 
-        # Improve ease of debugging (this error presents as a segfault)
-        assert widget is not None, f"Widget creation function '{createWidgetFunction.__name__}' returned None"
+        # Facilita a depuração caso a função retorne ``None`` (segfault em Qt)
+        assert widget is not None, (
+            f"Widget creation function '{createWidgetFunction.__name__}' returned None"
+        )
 
         if owner is not None and name is not None and name != "":
-            # Set `owner.name = widget` so the owner class is able to access the widget
+            # Atribui ``owner.name = widget`` para facilitar o acesso futuro
             setattr(owner, name, widget)
 
         return widget
@@ -73,7 +85,7 @@ def ComboBox(
     owner: Optional[QWidget] = None,
     name: Optional[str] = None
 ) -> QComboBox:
-    """[summary]"""
+    """Cria um ``QComboBox`` pré-preenchido com a lista de itens."""
 
     comboBox = QComboBox()
     comboBox.addItems(items)
@@ -91,6 +103,8 @@ def SpinBox(
     suffix: Optional[str] = None,
     defaultValue: Optional[int] = None,
 ) -> QSpinBox:
+    """Gera um ``QSpinBox`` numérico para valores inteiros."""
+
     spinbox = QSpinBox()
     spinbox.setMinimum(minVal)
     spinbox.setMaximum(maxVal)
@@ -113,6 +127,8 @@ def DoubleSpinBox(
     suffix: Optional[str] = None,
     defaultValue: Optional[float] = None
 ) -> QDoubleSpinBox:
+    """Versão com casas decimais de :func:`SpinBox`."""
+
     spinbox = QDoubleSpinBox()
     spinbox.setMinimum(minVal)
     spinbox.setMaximum(maxVal)
@@ -131,7 +147,8 @@ def Custom(
     name: str,
     widget: QWidget
 ):
-    """Wraps any sort of custom Widget so it can fit in the QtWrapper paradigm"""
+    """Envolve qualquer widget customizado para caber no paradigma do wrapper."""
+
     return widget
 
 
@@ -142,10 +159,12 @@ def GroupBox(
     owner: QWidget = None,
     name: str = None
 ) -> QGroupBox:
-    horizontalBoxLayout = QGroupBox(title)
-    horizontalBoxLayout.setLayout(layout)
+    """Cria um ``QGroupBox`` contendo o *layout* informado."""
 
-    return horizontalBoxLayout
+    groupBox = QGroupBox(title)
+    groupBox.setLayout(layout)
+
+    return groupBox
 
 
 @bindsToClass
@@ -155,16 +174,16 @@ def HorizontalBoxLayout(
     margins: Optional[Tuple[int, int, int, int]] = None,
     contents: List[Union[QWidget, QLayout]] = []
 ) -> QHBoxLayout:
-    """[summary]
+    """Cria um ``QHBoxLayout`` e adiciona conteúdos na horizontal.
 
     Args:
-        owner (QWidget): The class to which the property will be added
-        name (str): The property name of the created object in the class (not seen by users)
-        margins (Tuple[int, int, int, int]): left, top, right, bottom
-        contents (List[Union[QWidget, QLayout]])
+        owner: Classe que receberá o layout como atributo.
+        name: Nome do atributo utilizado para armazenar o layout.
+        margins: Margens (esquerda, topo, direita, base) em pixels.
+        contents: Widgets ou layouts a serem adicionados.
 
     Returns:
-        QVBoxLayout
+        QHBoxLayout configurado.
     """
     horizontalBoxLayout = QHBoxLayout()
 
@@ -186,7 +205,7 @@ def HorizontalSlider(
     owner: QWidget = None,
     name: str = None,
 ) -> QSlider:
-    """[summary]"""
+    """Retorna um ``QSlider`` orientado horizontalmente."""
     return QSlider(QtCore.Qt.Horizontal)
 
 
@@ -196,9 +215,11 @@ def HorizontalSplitter(
     owner: QWidget = None,
     name: str = None,
 ) -> QSplitter:
+    """Agrupa widgets lado a lado utilizando ``QSplitter`` horizontal."""
+
     splitter = QSplitter(QtCore.Qt.Horizontal)
 
-    # NOTE: Splitters can only have QWidgets as children---not QLayouts
+    # ``QSplitter`` só aceita widgets diretos como filhos
     for widget in contents:
         splitter.addWidget(widget)
 
@@ -211,6 +232,7 @@ def Label(
     owner: QWidget = None,
     name: str = None
 ) -> QLabel:
+    """Cria um rótulo de texto simples."""
 
     return QLabel(text)
 
@@ -222,22 +244,12 @@ def Menu(
     name: str = None,
     displayName: str = None
 ) -> QMenu:
-    """Creates a QMenu
+    """Cria um ``QMenu`` com itens e separadores."""
 
-    Args:
-        owner (QWidget): The class to which the Menu property will be added
-        name (str): The property name of the Menu in the class (not seen by users)
-        displayName (str): The Menu name displayed to the user
-        items (List[Union[QAction, Separator]]): Items to display in the menu
-
-    Returns:
-        QMenu: Menu
-    """
-    menu = QMenu(displayName)  # In this case the `owner` is the main window
+    menu = QMenu(displayName)  # aqui o owner é a janela principal
     for item in items:
         if type(item) is Separator:
             menu.addSeparator()
-            # Cast `item` : `Union[QAction, Separator] -> QAction` for mypy
         elif type(item) is QAction:
             menu.addAction(cast(QAction, item))
 
@@ -252,18 +264,11 @@ def MenuAction(
     name: str = None,
     displayName: str = None
 ) -> QAction:
-    """Creates a MenuAction
+    """Cria uma ação de menu configurável."""
 
-    Args:
-        owner (QWidget): The class to which the Menu property will be added
-        name (str): The property name of the Menu in the class (not seen by users)
-        displayName (str): The name displayed to the user in the menu list for this action
-        shortcut (Union[str, QtGui.QKeySequence]): The keyboard shortcut to trigger the action
-        statusTip (str): ???
-    """
     action = QAction(
         '&' + displayName, owner
-    ) if displayName else QAction(owner) # In this case the owner is the main window
+    ) if displayName else QAction(owner)
     if shortcut:
         action.setShortcut(shortcut)
     if statusTip:
@@ -276,17 +281,8 @@ def MenuAction(
 def MenuBar(
     owner: QMainWindow, menus: List[QMenu], name: str = None
 ) -> QMenuBar:
-    """Creates a QMenuBar
+    """Monta a barra de menus principal da aplicação."""
 
-    Args:
-        owner (QMainWindow): The MainWindow to which the MenuBar will be added
-        name (str): The name of the MenuBar property
-        menus (List[QMenu]): Menus container in the MenuBar
-
-    Returns:
-        QMenuBar: The menubar created
-    """
-    # In this case the `owner` is the main window
     menuBar = owner.menuBar()  # type: QMenuBar
     for menu in menus:
         menuBar.addMenu(menu)
@@ -298,9 +294,11 @@ def MenuBar(
 def PushButton(
     owner: QWidget = None,
     name: str = None,
-    icon: Optional[QtGui.QIcon] = None,
-    text: str = ""
+    icon: Optional[QtGui::QIcon] = None,
+    text: str = "",
 ) -> QPushButton:
+    """Cria um botão simples, com suporte opcional a ícone."""
+
     if icon is not None:
         button = QPushButton(icon, text)
     else:
@@ -313,6 +311,8 @@ def PushButton(
 def RadioButton(
     text: str, owner: QWidget = None, name: str = None
 ) -> QRadioButton:
+    """Retorna um ``QRadioButton`` configurado."""
+
     return QRadioButton(text)
 
 
@@ -325,7 +325,7 @@ def ScrollArea(
     verticalScrollBarPolicy: Optional[QtCore.Qt.ScrollBarPolicy] = None,
     widgetIsResizable: Optional[bool] = None
 ) -> QScrollArea:
-    """[summary]"""
+    """Adiciona um widget interno a uma área com barras de rolagem."""
 
     scrollArea = QScrollArea()
 
@@ -349,7 +349,7 @@ def TabWidget(
     owner: Optional[QWidget] = None,
     name: Optional[str] = None,
 ) -> QTabWidget:
-    """[summary]"""
+    """Cria um ``QTabWidget`` e adiciona as abas fornecidas."""
 
     tabWidget = QTabWidget()
 
@@ -365,7 +365,7 @@ def StackedWidget(
     owner: Optional[QWidget] = None,
     name: Optional[str] = None,
 ) -> QStackedWidget:
-    """[summary]"""
+    """Empilha vários widgets, exibindo apenas um por vez."""
 
     stackedWidget = QStackedWidget()
 
@@ -382,17 +382,7 @@ def VerticalBoxLayout(
     margins: Optional[Tuple[int, int, int, int]] = None,
     contents: List[Union[QWidget, QLayout]] = []
 ) -> QVBoxLayout:
-    """[summary]
-
-    Args:
-        owner (QWidget): The class to which the property will be added
-        name (str): The property name of the created object in the class (not seen by users)
-        margins (Tuple[int, int, int, int]): left, top, right, bottom
-        contents (List[Union[QWidget, QLayout]])
-
-    Returns:
-        QVBoxLayout
-    """
+    """Versão vertical de :func:`HorizontalBoxLayout`."""
     verticalBoxLayout = QVBoxLayout()
 
     if margins is not None:
@@ -414,9 +404,11 @@ def VerticalSplitter(
     owner: QWidget = None,
     name: str = None
 ) -> QSplitter:
+    """Agrupa widgets verticalmente usando ``QSplitter``."""
+
     splitter = QSplitter(QtCore.Qt.Vertical)
 
-    # NOTE: Splitters can only have QWidgets as children---not QLayouts
+    # ``QSplitter`` aceita somente widgets diretos, não layouts
     for widget in contents:
         splitter.addWidget(widget)
 
@@ -431,18 +423,7 @@ def Widget(
     verticalPolicy: Optional[QSizePolicy.Policy] = None,
     layout: Optional[QLayout] = None
 ) -> QWidget:
-    """[summary]
-
-    Args:
-        owner (QWidget): [description]
-        name (str): [description]
-        layout (QLayout): [description]
-        horizontalPolicy (QSizePolicy.Policy, optional): [description]. Defaults to None.
-        verticalPolicy (QSizePolicy.Policy, optional): [description]. Defaults to None.
-
-    Returns:
-        QWidget: [description]
-    """
+    """Cria um ``QWidget`` genérico com opções de ``sizePolicy`` e layout."""
     widget = QWidget()
 
     sizePolicy = widget.sizePolicy()
@@ -468,6 +449,7 @@ def LineEdit(
     contents: str = "",
     readOnly: bool = False
 ) -> QLineEdit:
+    """Cria um campo de texto de linha única."""
 
     lineEdit = QLineEdit()
     lineEdit.setText(contents)
@@ -480,6 +462,7 @@ def FormLayout(
     name: Optional[str] = None,
     owner: Optional[QWidget] = None
 ) -> QFormLayout:
+    """Organiza pares de widgets em forma de formulário."""
 
     layout = QFormLayout()
 
@@ -488,3 +471,4 @@ def FormLayout(
         layout.addRow(item1, item2)
 
     return layout
+
