@@ -1,8 +1,8 @@
-"""
-EditorWindow.py
-Created November 7, 2020
+"""Widget principal do editor de ECG.
 
--
+Agrupa a área de visualização da imagem e os painéis de edição,
+permitindo ao usuário selecionar derivação, ajustar rotação e
+configurações de escala antes da digitalização do sinal.
 """
 from pathlib import Path
 
@@ -17,19 +17,23 @@ from QtWrapper import *
 from views.MessageDialog import *
 
 class Editor(QtWidgets.QWidget):
+    """Componente central que coordena visualização e edição do ECG."""
+
     processEcgData = QtCore.pyqtSignal()
     saveAnnotationsButtonClicked = QtCore.pyqtSignal()
 
-    image = None # The openCV image
+    image = None  # Imagem em formato OpenCV
 
     def __init__(self, parent):
         super().__init__()
+        # Referência à janela principal da aplicação
         self.mainWindow = parent
 
         self.initUI()
         self.connectUI()
 
     def initUI(self):
+        """Monta a interface do editor com visualizador e painel de controles."""
         self.setLayout(
             HorizontalBoxLayout(self, "main", margins=(0,0,0,0), contents=[
                 HorizontalSplitter(owner=self, name="viewSplitter", contents=[
@@ -71,6 +75,7 @@ class Editor(QtWidgets.QWidget):
         self.controlPanel.setMaximumWidth(450)
 
     def connectUI(self):
+        """Conecta sinais de menu e widgets internos às ações do editor."""
         self.mainWindow.addLead1.triggered.connect(lambda: self.addLead(LeadId['I']))
         self.mainWindow.addLead2.triggered.connect(lambda: self.addLead(LeadId['II']))
         self.mainWindow.addLead3.triggered.connect(lambda: self.addLead(LeadId['III']))
@@ -84,13 +89,14 @@ class Editor(QtWidgets.QWidget):
         self.mainWindow.addLeadV5.triggered.connect(lambda: self.addLead(LeadId['V5']))
         self.mainWindow.addLeadV6.triggered.connect(lambda: self.addLead(LeadId['V6']))
 
-
+        # Quando usuário seleciona uma ROI, alterna painel correspondente
         self.imageViewer.roiItemSelected.connect(self.setControlPanel)
 
         self.EditPanelLeadView.leadStartTimeChanged.connect(self.updateLeadStartTime)
         self.EditPanelLeadView.deleteLeadRoi.connect(self.deleteLeadRoi)
 
     def loadSavedState(self, data):
+        """Restaura estado previamente salvo, incluindo rotação e ROIs."""
         self.EditPanelGlobalView.setRotation(data['rotation'])
         self.EditPanelGlobalView.setValues(voltScale=data['voltageScale'], timeScale=data['timeScale'])
         self.EditPanelGlobalView.setLastSavedTimeStamp(data['timeStamp'])
@@ -99,7 +105,14 @@ class Editor(QtWidgets.QWidget):
         for name in leads:
             lead = leads[name]
             cropping = lead['cropping']
-            self.addLead(leadIdEnum=LeadId[name], x=cropping['x'], y=cropping['y'], width=cropping['width'], height=cropping['height'], startTime=lead['start'])
+            self.addLead(
+                leadIdEnum=LeadId[name],
+                x=cropping['x'],
+                y=cropping['y'],
+                width=cropping['width'],
+                height=cropping['height'],
+                startTime=lead['start'],
+            )
 
 
     ###########################
@@ -107,18 +120,18 @@ class Editor(QtWidgets.QWidget):
     ###########################
 
     def setControlPanel(self, leadId=None, leadSelected=False):
+        """Alterna entre painel global e painel de detalhes da derivação."""
         if leadSelected == True and leadId is not None:
             self.showLeadDetailView(leadId)
         else:
-            # self.showGlobalView(self.inputParameters.voltScale, self.inputParameters.timeScale)
             self.showGlobalView()
 
     def showGlobalView(self):
-        # self.EditPanelGlobalView.setValues(voltScale, timeScale)
+        """Exibe controles gerais de rotação e escala."""
         self.editPanel.setCurrentIndex(0)
 
     def showLeadDetailView(self, leadId):
-        # leadStartTime = self.inputParameters.leads[LeadId[leadId]].startTime
+        """Exibe painel de edição específico para o `leadId` informado."""
         leadStartTime = self.imageViewer.getLeadRoiStartTime(leadId)
         self.EditPanelLeadView.setValues(leadId, leadStartTime)
         self.editPanel.setCurrentIndex(1)
@@ -129,6 +142,7 @@ class Editor(QtWidgets.QWidget):
     ###################
 
     def resetImageEditControls(self):
+        """Restaura valores padrão e limpa indicadores de salvamento."""
         self.EditPanelGlobalView.rotationSlider.setValue(0)
         self.EditPanelGlobalView.clearTimeSpinBox()
         self.EditPanelGlobalView.clearVoltSpinBox()
@@ -136,17 +150,20 @@ class Editor(QtWidgets.QWidget):
         self.showGlobalView()
 
     def loadImageFromPath(self, path: Path):
+        """Carrega imagem do disco e exibe no visualizador."""
         self.image = ImageUtilities.readImage(path)
         self.displayImage()
 
     def displayImage(self):
+        """Mostra a imagem no `ImageView` e ajusta o zoom inicial."""
         self.imageViewer.setImage(self.image)
         self.editPanel.show()
 
-        # Adjust zoom to fit image in view
+        # Ajusta o zoom para enquadrar a imagem
         self.imageViewer.fitImageInView()
 
     def removeImage(self):
+        """Remove a imagem atual do editor."""
         self.image = None
         self.imageViewer.removeImage()
 
@@ -156,14 +173,14 @@ class Editor(QtWidgets.QWidget):
     ######################
 
     def addLead(self, leadIdEnum, x=0, y=0, width=400, height=200, startTime=0.0):
+        """Adiciona uma ROI para a derivação especificada."""
         if self.imageViewer.hasImage():
             leadId = leadIdEnum.name
 
-            # Disable menu action so user can't add more than one bounding box for an individual lead
-            # action.setEnabled(False)
+            # Desabilita ação de menu para evitar múltiplas caixas para mesmo lead
             self.mainWindow.leadButtons[leadIdEnum].setEnabled(False)
 
-            # Create instance of Region of Interest (ROI) bounding box and add to image viewer
+            # Cria instância da ROI e adiciona ao `ImageView`
             roiBox = ROIItem(self.imageViewer._scene, leadId)
             roiBox.setRect(x, y, width, height)
             roiBox.startTime = startTime
@@ -172,21 +189,24 @@ class Editor(QtWidgets.QWidget):
             roiBox.show()
 
     def updateLeadStartTime(self, leadId, value=None):
+        """Atualiza o tempo inicial de uma ROI após alteração no painel."""
         if value is None:
             value = self.EditPanelLeadView.leadStartTimeSpinBox.value()
 
         self.imageViewer.setLeadRoiStartTime(leadId, value)
 
     def deleteLeadRoi(self, leadId):
-        self.imageViewer.removeRoiBox(leadId)   # Remove lead roi box from image view
-        self.mainWindow.leadButtons[LeadId[leadId]].setEnabled(True)    # Re-enable add lead menu button
-        self.setControlPanel()  # Set control panel back to global view
+        """Remove ROI do `ImageView` e reabilita botão de menu."""
+        self.imageViewer.removeRoiBox(leadId)
+        self.mainWindow.leadButtons[LeadId[leadId]].setEnabled(True)
+        self.setControlPanel()  # Retorna para painel global
 
     def deleteAllLeadRois(self):
-        self.imageViewer.removeAllRoiBoxes()  # Remove all lead roi boxes from image view
+        """Remove todas as ROIs e reativa os botões de adição."""
+        self.imageViewer.removeAllRoiBoxes()
 
-        # Re-enable all add lead menu buttons
+        # Reabilita todos os botões de menu
         for _, button in self.mainWindow.leadButtons.items():
             button.setEnabled(True)
 
-        self.setControlPanel()    # Set control panel back to global view
+        self.setControlPanel()    # Retorna para painel global

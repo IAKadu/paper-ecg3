@@ -1,7 +1,14 @@
-import numpy as np
-from utility import *
+"""Carrega sinais de ECG a partir de arquivos de texto.
 
-# Not using rn, but maybe this is useful?
+Cada linha do arquivo de entrada representa um instante de tempo e contém
+os valores dos leads separados por tabulação, vírgula ou espaço.
+"""
+
+import numpy as np
+from utility import allTrue, isFloat
+
+
+# Classe deixada como referência futura para estrutura de dados de sinais.
 class SignalData:
     I = None
     II = None
@@ -18,37 +25,52 @@ class SignalData:
     V6 = None
 
 
-def leadValues(text: str, conversion) -> bool:
-    if '\t' in text:
-        words = text.split('\t')
-    elif ',' in text:
-        words = text.split(',')
-    else:
-        words = text.split(' ')
+def leadValues(text: str, conversion) -> list | None:
+    """Converte uma linha de texto em uma lista de valores numéricos.
 
+    A linha pode estar separada por tabulações, vírgulas ou espaços. Caso
+    algum dos elementos não seja um número válido, `None` é retornado.
+    """
+
+    # Identifica o separador utilizado na linha.
+    if "\t" in text:
+        words = text.split("\t")
+    elif "," in text:
+        words = text.split(",")
+    else:
+        words = text.split(" ")
+
+    # Verifica se todos os campos podem ser interpretados como números.
     areFloats = list(map(isFloat, words))
 
     if not allTrue(areFloats):
-        print("Not all floats!:", words)
+        print("Nem todos são números:", words)
         return None
 
+    # Converte os valores para o tipo desejado.
     values = list(map(conversion, words))
     return values
 
 
-def load(fileName: str) -> SignalData:
+def load(fileName: str) -> np.ndarray:
+    """Lê um arquivo de sinais e retorna um array NumPy organizado por lead."""
+
     values = []
 
-    with open(fileName, 'r') as file:
+    # Percorre cada linha do arquivo e converte para valores numéricos.
+    with open(fileName, "r") as file:
         for line in file.readlines():
             text = line.strip()
-            valuesAtTime = leadValues(text, float) # ⚠️ Should this ever be float?
+            # TODO: ver se a conversão para float é sempre adequada
+            valuesAtTime = leadValues(text, float)
 
             if valuesAtTime is not None:
                 values.append(valuesAtTime)
 
-    leads = np.swapaxes(np.array(values),0,1)
+    # Transpõe a matriz para obter formato (n_leads, duração).
+    leads = np.swapaxes(np.array(values), 0, 1)
 
-    print("Loaded leads:", leads.shape)
+    print("Leads carregados:", leads.shape)
 
     return leads
+

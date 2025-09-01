@@ -1,16 +1,25 @@
+"""Componentes gráficos para seleção de regiões de interesse (ROI).
+
+Este módulo define `ROIItem`, um retângulo interativo utilizado para
+delimitar a área de cada derivação em uma cena do Qt.  O usuário pode
+mover e redimensionar essas caixas, recurso essencial para o recorte
+do sinal em cada lead do ECG.
+"""
+
 import numpy as np
 from PyQt5 import QtGui, QtCore, QtWidgets
 from model.Lead import LeadId
 
 import ImageUtilities
 
-# According the docs, custom items should have type >= UserType (65536)
-# Setting the type allows you to distinguish between items in the graphics scene
+# De acordo com a documentação, itens personalizados devem ter tipo >= UserType (65536)
+# Definir o tipo permite diferenciar os itens presentes na cena gráfica
 # https://doc.qt.io/archives/qt-4.8/qgraphicsitem.html#UserType-var
 ROI_ITEM_TYPE = QtWidgets.QGraphicsRectItem.UserType
 
-# From: https://github.com/drmatthews/slidecrop_pyqt/blob/master/slidecrop/gui/roi.py#L116
+# Adaptado de: https://github.com/drmatthews/slidecrop_pyqt/blob/master/slidecrop/gui/roi.py#L116
 class ROIItem(QtWidgets.QGraphicsRectItem):
+    """Retângulo interativo que representa a área selecionada de uma derivação."""
 
     handleTopLeft = 1
     handleTopMiddle = 2
@@ -37,37 +46,47 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
     }
 
     def __init__(self, parent, leadId, *args):
+        """Inicializa o retângulo de seleção.
+
+        Parameters
+        ----------
+        parent : QtWidgets.QGraphicsScene
+            Cena que conterá o item e controla seus limites de movimento.
+        leadId : str
+            Identificador da derivação representada por esta ROI.
         """
-        Initialize the shape.
-        """
+
         super().__init__(*args)
 
         self.leadId = leadId
         self.startTime = 0.0
 
-        # Minimum width and height of box (in pixels)
+        # Largura e altura mínimas do retângulo em pixels
         self.minHeight = 50
         self.minWidth = 50
 
-        # QGraphicsScene that contains this ROIItem instance
+        # Cena (`QGraphicsScene`) que contém esta ROIItem
         self.parentScene = parent
 
-        # QGraphicsView that displays the parentScene
+        # Views (`QGraphicsView`) que exibem a cena
         self.parentViews = self.parentScene.views()
 
+        # Dicionário que armazenará os pontos de redimensionamento (handles)
         self.handles = {}
         self.handleSelected = None
         self.mousePressPos = None
         self.mousePressRect = None
+        # Permite detectar eventos de hover do mouse
         self.setAcceptHoverEvents(True)
+        # Habilita movimentos, seleção e notificação de mudanças geométricas
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable, True)
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QtWidgets.QGraphicsItem.ItemSendsGeometryChanges, True)
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsFocusable, True)
         self.updateHandlesPos()
 
-        # Set item type to identify ROI items in scene - according to custom items should
-        # have type >= UserType (65536)
+        # Define tipo do item para poder identificá-lo na cena
+        # Itens customizados devem ter type >= UserType (65536)
         self.type = ROI_ITEM_TYPE
 
     @property
@@ -87,18 +106,14 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
         return self.mapToScene(self.rect()).boundingRect().toRect().height()
 
     def handleAt(self, point):
-        """
-        Returns the resize handle below the given point.
-        """
+        """Retorna o *handle* de redimensionamento sob determinado ponto."""
         for k, v, in self.handles.items():
             if v.contains(point):
                 return k
         return None
 
     def hoverMoveEvent(self, moveEvent):
-        """
-        Executed when the mouse moves over the shape (NOT PRESSED).
-        """
+        """Executado quando o mouse se move sobre o item (sem clicar)."""
         if self.isSelected():
             handle = self.handleAt(moveEvent.pos())
             cursor = QtCore.Qt.ArrowCursor if handle is None else self.handleCursors[handle]
@@ -106,16 +121,12 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
         super().hoverMoveEvent(moveEvent)
 
     def hoverLeaveEvent(self, moveEvent):
-        """
-        Executed when the mouse leaves the shape (NOT PRESSED).
-        """
+        """Restabelece o cursor padrão ao sair da área do item."""
         self.setCursor(QtCore.Qt.ArrowCursor)
         super().hoverLeaveEvent(moveEvent)
 
     def mousePressEvent(self, mouseEvent):
-        """
-        Executed when the mouse is pressed on the item.
-        """
+        """Acionado quando o usuário pressiona o mouse sobre o retângulo."""
         self.updateHandlesPos()
         self.mousePressPos = mouseEvent.pos()
         self.handleSelected = self.handleAt(mouseEvent.pos())
@@ -126,9 +137,7 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
         super().mousePressEvent(mouseEvent)
 
     def mouseMoveEvent(self, mouseEvent):
-        """
-        Executed when the mouse is being moved over the item while being pressed.
-        """
+        """Atualiza posição ou tamanho enquanto o botão do mouse é mantido."""
         if self.handleSelected is not None:
             self.interactiveResize(mouseEvent.pos())
         else:
@@ -136,9 +145,7 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
             super().mouseMoveEvent(mouseEvent)
 
     def mouseReleaseEvent(self, mouseEvent):
-        """
-        Executed when the mouse is released from the item.
-        """
+        """Finaliza o movimento/resize quando o botão do mouse é solto."""
         super().mouseReleaseEvent(mouseEvent)
         self.handleSelected = None
         self.mousePressPos = None
@@ -148,16 +155,12 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
         self.update()
 
     def boundingRect(self):
-        """
-        Returns the bounding rect of the shape (including the resize handles).
-        """
+        """Retângulo delimitador do item, incluindo os *handles* de resize."""
         o = self.handleSize + self.handleSpace
         return self.rect().adjusted(-o, -o, o, o)
 
     def updateHandlesPos(self):
-        """
-        Update current resize handles according to the shape size and position.
-        """
+        """Reposiciona os pontos de redimensionamento conforme o retângulo."""
         s = self.handleSize
         b = self.boundingRect()
 
@@ -171,9 +174,7 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
         self.handles[self.handleBottomRight] = QtCore.QRectF(b.right() - s, b.bottom() - s, s, s)
 
     def interactiveResize(self, mousePos):
-        """
-        Perform shape interactive resize.
-        """
+        """Executa o redimensionamento interativo do retângulo."""
         offset = self.handleSize + self.handleSpace
         sceneRect = self.parentScene.sceneRect()
         boundingRect = self.boundingRect()
@@ -290,6 +291,7 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
 
 
     def itemChange(self, change, value):
+        """Intercepta mudanças de posição e seleção do item."""
         if change == QtWidgets.QGraphicsRectItem.ItemPositionChange:
             if self.parentScene is not None:
                 return self.restrictMovement(value)
@@ -304,36 +306,36 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
         return QtWidgets.QGraphicsRectItem.itemChange(self, change, value)
 
 
-    # https://stackoverflow.com/questions/55771100/how-do-i-reimplement-the-itemchange-and-mousemoveevent-of-a-qgraphicspixmapitem
+    # Baseado em: https://stackoverflow.com/questions/55771100/how-do-i-reimplement-the-itemchange-and-mousemoveevent-of-a-qgraphicspixmapitem
     def restrictMovement(self, value):
+        """Mantém o retângulo dentro dos limites da cena."""
 
         boxRect = self.mapToScene(self.boundingRect()).boundingRect()
         handleOffset = self.handleSpace
         sceneRect = self.parentScene.sceneRect()
 
-        # 'value' represents the amount the item is being moved along the x,y plane so we calculate the actual (x,y) position the item is moving to
-        x = value.x()+self.handles[self.handleTopLeft].x()
-        y = value.y()+self.handles[self.handleTopLeft].y()
+        # `value` representa a nova posição proposta; convertemos para as
+        # coordenadas reais levando em conta o deslocamento dos *handles*
+        x = value.x() + self.handles[self.handleTopLeft].x()
+        y = value.y() + self.handles[self.handleTopLeft].y()
 
         relativeRect = QtCore.QRectF(sceneRect.topLeft(), sceneRect.size() - boxRect.size())
 
-        # If item is being moved out of bounds, override the appropriate x,y values to keep item within scene
+        # Caso a ROI ultrapasse os limites, ajustamos o deslocamento
         if not relativeRect.contains(x, y):
             if x < 1:
-                value.setX(sceneRect.left()-self.handles[self.handleTopLeft].x()+self.handleSpace)
-            elif x+boxRect.width() >= sceneRect.width():
-                value.setX(sceneRect.right()-boxRect.width()-self.handles[self.handleTopLeft].x()-self.handleSpace)
+                value.setX(sceneRect.left() - self.handles[self.handleTopLeft].x() + self.handleSpace)
+            elif x + boxRect.width() >= sceneRect.width():
+                value.setX(sceneRect.right() - boxRect.width() - self.handles[self.handleTopLeft].x() - self.handleSpace)
             if y < 1:
-                value.setY(sceneRect.top()-self.handles[self.handleTopLeft].y()+self.handleSpace)
-            elif y+boxRect.height() >= sceneRect.bottom():
-                value.setY(sceneRect.bottom()-boxRect.height()-self.handles[self.handleTopLeft].y()-self.handleSpace)
+                value.setY(sceneRect.top() - self.handles[self.handleTopLeft].y() + self.handleSpace)
+            elif y + boxRect.height() >= sceneRect.bottom():
+                value.setY(sceneRect.bottom() - boxRect.height() - self.handles[self.handleTopLeft].y() - self.handleSpace)
 
         return QtCore.QPointF(value.x(), value.y())
 
     def shape(self):
-        """
-        Returns the shape of this item as a QPainterPath in local coordinates.
-        """
+        """Forma geométrica do item em coordenadas locais."""
         path = QtGui.QPainterPath()
         path.addRect(self.rect())
         if self.isSelected():
@@ -342,28 +344,34 @@ class ROIItem(QtWidgets.QGraphicsRectItem):
         return path
 
     def paint(self, painter, option, widget=None):
-        """
-        Paint the node in the graphic view.
-        """
+        """Desenha a ROI na cena com estilo diferente para seleção ativa."""
 
         painter.setFont(QtGui.QFont('Default', 50))
         fontMetrics = QtGui.QFontMetrics(painter.font())
 
         if self.isSelected():
-            # Set color (red) and draw box (when selected)
+            # Quando selecionado, desenha borda e fundo em vermelho
             painter.setPen(QtGui.QPen(QtGui.QColor(255, 0, 0), 2.0, QtCore.Qt.SolidLine))
             painter.setBrush(QtGui.QBrush(QtGui.QColor(255, 0, 0, 64)))
             painter.drawRect(self.rect())
 
-            # Set color and paint resize handles
+            # Desenha os *handles* de redimensionamento
             painter.setRenderHint(QtGui.QPainter.Antialiasing)
             painter.setBrush(QtGui.QBrush(QtGui.QColor(255, 0, 0, 255)))
-            painter.setPen(QtGui.QPen(QtGui.QColor(255, 0, 0, 255), 2.0, QtCore.Qt.SolidLine, QtCore.Qt.RoundCap, QtCore.Qt.RoundJoin))
+            painter.setPen(
+                QtGui.QPen(
+                    QtGui.QColor(255, 0, 0, 255),
+                    2.0,
+                    QtCore.Qt.SolidLine,
+                    QtCore.Qt.RoundCap,
+                    QtCore.Qt.RoundJoin,
+                )
+            )
 
             for handle, rect in self.handles.items():
                 painter.drawRect(rect)
         else:
-            # Set color (grey) and draw box (unselected)
+            # Quando não selecionado, utiliza tom de cinza e exibe o nome do lead
             painter.setPen(QtGui.QPen(QtGui.QColor(128, 128, 128), 2.0, QtCore.Qt.SolidLine))
             painter.setBrush(QtGui.QBrush(QtGui.QColor(128, 128, 128, 64)))
             painter.drawText(self.rect(), QtCore.Qt.AlignCenter, self.leadId)

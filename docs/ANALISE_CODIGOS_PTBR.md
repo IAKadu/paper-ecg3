@@ -3,19 +3,6 @@
 Este documento descreve o propósito de cada arquivo Python presente no repositório.
 
 ## scripts/compare_ecg.py
-Compara dois sinais de ECG carregados de arquivos e plota cada par de canais para inspeção visual.
-
-## scripts/see_ecg.py
-Carrega um arquivo de ECG e exibe todos os canais disponíveis em gráficos separados.
-
-## scripts/signal_loader.py
-Lê arquivos de texto contendo valores de ECG, converte cada linha em números e retorna uma matriz com os canais.
-
-## scripts/utility.py
-Funções auxiliares para validação de números em formato de texto e para verificação de listas booleanas.
-
-## src/main/icons/updateIcon.py
-Gera automaticamente ícones em diversos tamanhos a partir de uma imagem base, incluindo um arquivo `.ico`.
 
 ## src/main/python/Main.py
 Ponto de entrada da aplicação PyQt, inicializando o `ApplicationContext` e o controlador principal.

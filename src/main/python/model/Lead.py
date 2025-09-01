@@ -1,7 +1,7 @@
 """
 lead.py
 
-Type representing an ECG lead.
+Tipo que representa uma derivação de ECG.
 """
 
 from enum import Enum
@@ -9,18 +9,18 @@ import dataclasses
 
 
 class LeadId(Enum):
-    """Enumerates the different names for leads
+    """Enumeração com os diferentes nomes das derivações.
 
-    `Enum` provides lots of awesome functionality:
+    O `Enum` oferece funcionalidades úteis:
 
-      - Check if a string is a valid member of this enum:
+      - Verificar se uma string é um membro válido:
         ```
-        someString in Lead.__members__
+        nome in LeadId.__members__
         ```
 
-      - Convert a string to enum:
+      - Converter uma string em enumeração:
         ```
-        myLead = Lead[someString]
+        minha_lead = LeadId[nome]
         ```
     """
 
@@ -44,9 +44,10 @@ class LeadId(Enum):
 
 @dataclasses.dataclass(frozen=True)
 class Lead:
-    x: int
-    y: int
-    width: int
-    height: int
-    startTime: int
+    """Representa a região de interesse selecionada para uma derivação."""
+    x: int      # posição X inicial da ROI
+    y: int      # posição Y inicial da ROI
+    width: int  # largura da região selecionada
+    height: int # altura da região selecionada
+    startTime: int  # instante inicial (ms) do sinal nesse trecho
 

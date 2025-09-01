@@ -1,9 +1,10 @@
-"""
-extraction.py
-Created February 17, 2021
+"""Extração de informações da grade do papel milimetrado.
 
-Provides methods for extracting grid data from images of leads.
+As funções deste módulo analisam imagens binárias para estimar a
+distância entre linhas da grade e a frequência espacial, etapas
+importantes para a digitalização do ECG.
 """
+
 from typing import List, Optional, Union
 
 import numpy as np
@@ -15,11 +16,18 @@ from ..image import BinaryImage
 
 
 def traceGridlines(binaryImage: BinaryImage, houghThreshold: int = 80) -> Optional[float]:
+    """Estimativa da distância entre linhas da grade.
+
+    Usa a Transformada de Hough para detectar linhas verticais e
+    horizontais no papel e calcula a moda das distâncias entre elas. O
+    menor espaçamento encontrado corresponde ao espaçamento da grade.
+    """
+
+    # Detecta todas as linhas fortes na imagem binária.
     lines = vision.houghLines(binaryImage, houghThreshold)
 
-    # from .. import visualization
-    # visualization.displayImage(visualization.overlayLines(lines, binaryImage.toColor()))
-
+    # Função interna que calcula as distâncias entre linhas com a mesma
+    # orientação (0º para horizontais e 90º para verticais).
     def getDistancesBetween(lines: List[int], inDirection: float = 0) -> List[float]:
         orientedLines = sorted(vision.getLinesInDirection(lines, inDirection))
         return common.calculateDistancesBetweenValues(orientedLines)
@@ -35,14 +43,23 @@ def traceGridlines(binaryImage: BinaryImage, houghThreshold: int = 80) -> Option
     elif horizontalGridSpacing is None:
         return verticalGridSpacing
     else:
+        # Retorna o menor espaçamento, que normalmente corresponde aos
+        # quadrículos menores do papel.
         return min([verticalGridSpacing, horizontalGridSpacing])
 
-    # TODO: Use median?
-    # TODO: Try using some sort of clustering and picking the smallest cluster below a threshold
+    # TODO: Usar mediana em vez de moda?
+    # TODO: Tentar algum tipo de clusterização para ignorar espaçamentos fora do padrão.
 
 
 def estimateFrequencyViaAutocorrelation(binaryImage: np.ndarray) -> Union[float, common.Failure]:
-    # TODO: Assert image is binary. Make typealias for Binary to help?
+    """Calcula a frequência da grade via autocorrelação.
+
+    A densidade de pixels em cada linha e coluna é autocorrelacionada para
+    encontrar picos periódicos. O primeiro pico após zero indica a
+    frequência (número de pixels entre linhas) da grade.
+    """
+
+    # TODO: Verificar se a imagem fornecida é binária.
 
     columnDensity = np.sum(binaryImage, axis=0)
     rowDensity = np.sum(binaryImage, axis=1)
@@ -50,27 +67,21 @@ def estimateFrequencyViaAutocorrelation(binaryImage: np.ndarray) -> Union[float,
     columnFrequencyStrengths = common.autocorrelation(columnDensity)
     rowFrequencyStrengths = common.autocorrelation(rowDensity)
 
-    # <-- DEBUG -->
-    # from .. import visualization
-    # import matplotlib.pyplot as plt
-    # plt.plot(columnDensity)
-    # visualization.displayGreyscaleImage(binaryImage)
-    # plt.plot(columnFrequencyStrengths)
-    # plt.plot(rowFrequencyStrengths)
-    # plt.show()
-
     columnFrequency = grid_frequency._estimateFirstPeakLocation(columnFrequencyStrengths)
     rowFrequency = grid_frequency._estimateFirstPeakLocation(rowFrequencyStrengths)
 
     if columnFrequency and rowFrequency:
-        # TODO: Make this configurable or remove:
-        # return common.mean([columnFrequency, rowFrequency])
+        # Caso tenhamos frequências em ambos os eixos, preferimos a
+        # estimativa das colunas (outras estratégias podem ser avaliadas).
         return columnFrequency
-        # return rowFrequency
     elif rowFrequency:
         return rowFrequency
     elif columnFrequency:
         return columnFrequency
     else:
-        return common.Failure("Unable to estimate the frequency of the grid in either directions.")
+        return common.Failure(
+            "Unable to estimate the frequency of the grid in either directions."
+        )
+
+
 
