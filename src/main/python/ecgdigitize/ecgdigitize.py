@@ -1,3 +1,11 @@
+"""Rotinas de alto nível para digitalização de sinais e grades de ECG.
+
+Este módulo reúne funções que coordenam diferentes etapas do processamento de
+imagens: detecção de linhas de grade, extração do traçado do sinal e cálculo de
+parâmetros relevantes. As docstrings descrevem a lógica empregada em cada
+passo para auxiliar o entendimento do fluxo.
+"""
+
 from typing import Optional, Union
 from dataclasses import dataclass
 from enum import Enum
@@ -14,20 +22,24 @@ from . import vision
 
 
 def estimateRotationAngle(image: ColorImage, houghThresholdFraction: float = 0.25) -> Optional[float]:
+    """Estima o ângulo de rotação da imagem a partir das linhas da grade."""
+
+    # Converte a imagem colorida para binária destacando apenas pixels escuros
     binaryImage = grid_detection.thresholdApproach(image)
 
+    # Define limiar do algoritmo de Hough proporcional à largura da imagem
     houghThreshold = int(image.width * houghThresholdFraction)
     lines = vision.houghLines(binaryImage, houghThreshold)
 
-    # <- DEBUG ->
-    # from ecgdigitize import visualization
-    # visualization.displayImage(visualization.overlayLines(lines, image))
-
+    # Converte cada linha detectada para um ângulo em graus
     angles = common.mapList(lines, vision.houghLineToAngle)
+    # Normaliza ângulos para faixa de 0 a 90 graus
     offsets = common.mapList(angles, lambda angle: angle % 90)
+    # Mantém apenas ângulos próximos a 0° ou 90°, prováveis linhas da grade
     candidates = common.filterList(offsets, lambda offset: abs(offset) < 30)
 
     if len(candidates) > 1:
+        # Calcula média para suavizar pequenas variações
         estimatedAngle = common.mean(candidates)
         return estimatedAngle
     else:
@@ -35,11 +47,15 @@ def estimateRotationAngle(image: ColorImage, houghThresholdFraction: float = 0.2
 
 
 class SignalDetectionMethod(Enum):
-    default = 'default'
+    """Opções de algoritmos para detecção do traçado do sinal."""
+
+    default = "default"
 
 
 class SignalExtractionMethod(Enum):
-    default = 'default'
+    """Métodos disponíveis para extração do sinal a partir da imagem binária."""
+
+    default = "default"
 
 
 def digitizeSignal(
@@ -47,13 +63,15 @@ def digitizeSignal(
     detectionMethod: SignalDetectionMethod = SignalDetectionMethod.default,
     extractionMethod: SignalExtractionMethod = SignalExtractionMethod.default
 ) -> Union[np.ndarray, common.Failure]:
-    # First, convert color image to binary image where signal pixels are turned on (1) and other are off (0)
+    """Digitaliza o traçado do ECG presente na imagem fornecida."""
+
+    # 1) Converte imagem colorida em binária, isolando os pixels do sinal
     if detectionMethod == SignalDetectionMethod.default:
         binary = signal_detection.adaptive(image)
     else:
         raise ValueError("Unrecognized SignalDetectionMethod in `digitizeSignal`")
 
-    # Second, analyze the binary image to produce a signal
+    # 2) A partir da imagem binária, extrai-se a sequência de amplitudes
     if extractionMethod == SignalExtractionMethod.default:
         signal = viterbi.extractSignal(binary)
     else:
@@ -63,11 +81,15 @@ def digitizeSignal(
 
 
 class GridDetectionMethod(Enum):
-    default = 'default'
+    """Estratégias para localizar a grade de fundo do ECG."""
+
+    default = "default"
 
 
 class GridExtractionMethod(Enum):
-    default = 'default'
+    """Métodos para estimar o espaçamento da grade em pixels."""
+
+    default = "default"
 
 
 def digitizeGrid(
@@ -75,14 +97,16 @@ def digitizeGrid(
     detectionMethod: GridDetectionMethod = GridDetectionMethod.default,
     extractionMethod: GridExtractionMethod = GridExtractionMethod.default
 ) -> Union[float, common.Failure]:  # Returns size of grid in pixels
-    # First, convert color image to binary image where grid pixels are turned on (1) and all others are off (0)
+    """Estimativa do tamanho da grade de referência em pixels."""
+
+    # 1) Converte a imagem colorida em binária com foco nos pixels da grade
     if detectionMethod == GridDetectionMethod.default:
-        # Nothing intelligent; just gets all non-white pixels
+        # Abordagem simples: considera todos os pixels não brancos como parte da grade
         binary = grid_detection.allDarkPixels(image)
     else:
         raise ValueError("Unrecognized GridDetectionMethod in `digitizeGrid`")
 
-    # Second, analyze the binary image to estimate the grid spacing (period)
+    # 2) Analisa a imagem binária para medir o período da grade
     if extractionMethod == GridExtractionMethod.default:
         gridPeriod = grid_extraction.estimateFrequencyViaAutocorrelation(binary.data)
     else:
