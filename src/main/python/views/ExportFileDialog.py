@@ -121,7 +121,7 @@ class ExportFileDialog(QtWidgets.QDialog):
             caption="Export to File",
             filter="Text File (*.txt);;CSV (*.csv)"
         )
-        if path is not "" and selectedFilter in fileTypesDictionary:
+        if path != "" and selectedFilter in fileTypesDictionary:
             self.errorMessageLabel.setText("")
             self.chooseFileTextBox.setText(path)
             self.fileExportPath = path
