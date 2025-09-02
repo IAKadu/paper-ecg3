@@ -1,11 +1,13 @@
 # GUI
 fbs==0.9.0
-PyQt5==5.15.1
+#PyQt5==5.15.1
+PyQt5==5.15.5
+
 
 # Numerical/image
-numpy
+numpy==1.23.5
 # https://stackoverflow.com/questions/62581504/why-do-i-have-modulenotfounderror-no-module-named-scipy-special-cython-specia
-scipy==1.4.1
+scipy==1.9.3
 opencv-python-headless>=4.4
 qimage2ndarray
 
