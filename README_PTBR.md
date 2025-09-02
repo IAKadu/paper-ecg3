@@ -53,7 +53,7 @@ py -3.6 -m fbs build
 ```
 
 ## Dependências
-Requer Python 3.6.7 devido às limitações do `fbs`.
+Requer Python 3.6.7 devido às limitações do `fbs`. Por conta das atualizações de bibliotecas melhor usar a versão 3.10 do Python
 
 ## Citação
 Se utilizar este software, cite:
